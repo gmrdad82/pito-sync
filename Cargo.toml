@@ -1,0 +1,17 @@
+[package]
+name = "pito-sync"
+version = "0.1.5"
+edition = "2024"
+rust-version = "1.97"
+description = "A local-SQLite sync layer for desktop and terminal apps: one database per app, background sources writing, the UI only reading"
+license = "MIT"
+repository = "https://github.com/gmrdad82/pito-sync"
+homepage = "https://pitomd.com"
+readme = "README.md"
+publish = false
+
+[lib]
+name = "pito_sync"
+
+[dependencies]
+rusqlite = { version = "0.40", features = ["bundled"] }
