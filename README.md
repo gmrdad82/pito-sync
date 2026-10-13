@@ -5,7 +5,7 @@
 [![CI](https://github.com/gmrdad82/pito-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/gmrdad82/pito-sync/actions/workflows/ci.yml) [![Version](https://img.shields.io/github/v/tag/gmrdad82/pito-sync)](https://github.com/gmrdad82/pito-sync/tags)
 
 pito-sync is a small Rust crate for apps whose UI reads a local SQLite file
-while background sources keep it up to date, part of [PITO](https://pitomd.com).
+while background sources keep it up to date, part of [PITO MD](https://pitomd.com).
 The UI never waits on the network: it reads its own database, and each source
 syncs data into it on its own thread and says when something changed. Each app
 keeps its own database file and its own tables; the crate never shares a file
@@ -261,5 +261,5 @@ of the example ([NOTICE](NOTICE)).
 ## Licence
 
 The code is MIT licensed ([LICENSE](LICENSE)), © Catalin Ilinca. The pito-sync
-and PITO names and their logos are © Catalin Ilinca, all rights reserved, and
+and PITO MD names and their logos are © Catalin Ilinca, all rights reserved, and
 are not covered by the MIT licence ([TRADEMARKS.md](TRADEMARKS.md)).
