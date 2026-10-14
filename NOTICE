@@ -16,5 +16,8 @@ under the MIT licence like the code:
 - docs/images/busy-writer-paired.png: docs/charts/busy-writer.toml
 - docs/images/step-costs-bars.png: docs/charts/step-costs.toml
 
+The PITO MD wordmark in docs/images/pitomd-wordmark.svg is copied by bin/marks
+from the PITO MD brand masters at aa3aee8b232a1b848995bf3d9a012a01d4aff8ec.
+
 The pito-sync and PITO MD names and their logos are © Catalin Ilinca, all rights
 reserved and not covered by the MIT licence (TRADEMARKS.md).

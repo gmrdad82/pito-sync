@@ -400,6 +400,8 @@ the examples, and the charts' data is in [docs/charts/](docs/charts/)
 
 ## Licence
 
+<img src="docs/images/pitomd-wordmark.svg" width="320" alt="PITO MD">
+
 The code is MIT licensed ([LICENSE](LICENSE)), © Catalin Ilinca. The pito-sync
 and PITO MD names and their logos are © Catalin Ilinca, all rights reserved, and
 are not covered by the MIT licence ([TRADEMARKS.md](TRADEMARKS.md)).
