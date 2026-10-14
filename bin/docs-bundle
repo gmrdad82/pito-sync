@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+tag="v$version"
+out=${1:-tmp}
+stage="$out/docs-bundle"
+tarball="$out/docs-$tag.tar.gz"
+
+grep -q "^## $tag " CHANGELOG.md || { echo "docs-bundle: CHANGELOG.md has no section for $tag" >&2; exit 1; }
+
+rm -rf "$stage"
+mkdir -p "$stage/docs"
+cp docs/index.md docs/install.md "$stage/docs/"
+cp -r docs/guides docs/reference docs/images "$stage/docs/"
+
+{
+	printf -- '---\ntitle: Changelog\ndescription: What changed in each pito-sync release.\nsidebar:\n  order: 99\n---\n'
+	sed '1{/^# /d}' CHANGELOG.md
+} > "$stage/docs/changelog.md"
+
+rm -rf target/doc
+cargo doc --no-deps --locked --quiet
+cp -r target/doc "$stage/docs/api"
+rm -f "$stage/docs/api/.lock"
+
+for image in "$stage"/docs/images/*; do
+	name="docs/images/$(basename "$image")"
+	grep -qF "$name" NOTICE || { echo "docs-bundle: $name is not named in NOTICE" >&2; exit 1; }
+done
+(
+	cd "$stage/docs"
+	status=0
+	while IFS= read -r page; do
+		dir=$(dirname "$page")
+		while IFS= read -r link; do
+			[ -e "$dir/$link" ] || { echo "docs-bundle: $page links to $link, which is missing" >&2; status=1; }
+		done < <(grep -oE '\]\([^)#: ]+\)' "$page" | sed 's/^](//; s/)$//')
+	done < <(find . -name '*.md' -not -path './api/*')
+	exit $status
+)
+
+tar_flags=()
+if tar --version 2>/dev/null | grep -q GNU; then
+	tar_flags=(--sort=name --owner=0 --group=0 --numeric-owner --mtime=@0)
+fi
+tar ${tar_flags[@]+"${tar_flags[@]}"} -czf "$tarball" -C "$stage" docs
+echo "$tarball"
