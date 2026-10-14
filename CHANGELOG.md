@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.0.0 — 2026-10-14
+
+### Added
+
+- The `numbers` example measures the crate on your machine: `cargo run --release --example numbers`.
+
+### Changed
+
+- pito-sync reaches 1.0.0; the API is the same as 0.1.5.
+- The README shows every feature with a chart, a clip or code and its output, and leads with measured numbers: a UI read takes 47 µs while a source writes 10,000 rows back to back.
+- The brand now reads PITO MD.
+
 ## v0.1.5 — 2026-10-12
 
 ### Added
