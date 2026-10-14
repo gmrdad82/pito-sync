@@ -7,36 +7,40 @@
 pito-sync is a small Rust crate for apps whose UI reads a local SQLite file
 while background sources keep it up to date, part of [PITO MD](https://pitomd.com).
 The UI never waits on the network: it reads its own database, and each source
-syncs data into it on its own thread and says when something changed. Each app
-keeps its own database file and its own tables; the crate never shares a file
-or a row between apps.
+syncs data into it on its own thread and says when something changed.
+
+**A UI read takes 47 µs while a source rewrites 10,000 rows back to back, and
+its p99 stays at 0.19 ms; the same code on SQLite's defaults has a p99 of
+1.23 s.** 569 lines of Rust, one dependency.
 
 Works on Linux and macOS (Windows through WSL).
 
-## What it is
+## At a glance
 
-- **One database per app,** opened private (the file 0600, its folder 0700)
-  with WAL, and treated as a cache: when the app's schema version changes, the
-  file is dropped and rebuilt, never migrated.
-- **Sources on their own threads.** A source is a trait with one `pass`. The
-  runner gives it its own connection, runs the first pass at once, then timed
-  passes or a pass whenever the app asks with a `Resync`.
-- **One transaction per pass.** A pass writes its rows and its bookkeeping row
-  in one `BEGIN IMMEDIATE`, so the UI sees both or neither.
-- **The UI only reads,** through a read-only connection, and re-reads when a
-  `Changed` arrives. A pass sends one when it starts and one when it ends, so
-  the UI can show "syncing…" with no extra wiring.
-- **Failures the UI can read back** by kind (`no_key`, `refused`, `forbidden`,
-  `unreachable`, `bad_answer`, `rate_limited`), with a `retry_after` a timed
-  pass respects.
-- **Secrets that stay secret:** a `Secret` hides in `Debug`, has no `Clone` or
-  `Display`, and zeroes its buffer when it drops; the crate never writes one
-  anywhere.
+| What | Measured |
+|---|---|
+| A UI read (a page of 50 rows and the sync row), writer idle | 8.6 µs median |
+| The same read while a source commits 10,000-row passes back to back | 46.8 µs median, 0.19 ms p99, 2.84 ms slowest |
+| The same read and writer on SQLite's defaults | 73.5 µs median, 1.23 s p99 and slowest |
+| `Resync` to its closing `Changed`, through the source's thread | 33.0 µs median, 0.74 ms p99 |
+| A pass writing 10,000 rows in one transaction | 3.61 ms, 2.77 million rows a second |
+| `open` of an existing database | 74.0 µs |
+| `open` of a new one: its folder, the file and the schema, once per install or schema version | 144 ms |
+| Library code | 569 lines of Rust in `src/`, tests aside |
+| Dependencies | one, `rusqlite` 0.40 with SQLite compiled in; 9 crates in all |
+| A whole app with SQLite inside (the `feed` example, release build) | 3.0 MB |
+| A clean release build of the crate, SQLite included | 1 min 16 s at 4 jobs |
 
-The crate re-exports `rusqlite` (0.40, with SQLite bundled), so an app uses
-`pito_sync::rusqlite` and stays on the same version.
+Measured once on 2026-10-14 with [`examples/numbers.rs`](examples/numbers.rs),
+a release build, on an AMD Ryzen 9 9950X under Linux, the database on btrfs.
+The machine was busy with other builds at the time (load average 65 on 32
+threads), so these are numbers under load, not a quiet bench. Run it on yours:
 
-## Install
+```
+cargo run --release --example numbers
+```
+
+## Install and first use
 
 Add it to your `Cargo.toml` as a git dependency:
 
@@ -46,23 +50,22 @@ pito-sync = { git = "https://github.com/gmrdad82/pito-sync", tag = "v0.1.5" }
 
 It needs Rust 1.97 or newer and a C compiler, since SQLite is compiled in:
 
-- **Linux:** `build-essential` on Debian and Ubuntu, `base-devel` on Arch, or
-  `gcc` from your distribution.
+- **Linux:** `sudo apt install build-essential` on Debian and Ubuntu,
+  `sudo pacman -S base-devel` on Arch, or `gcc` from your distribution.
 - **macOS:** the Xcode command line tools, `xcode-select --install`.
 - **Windows:** inside WSL, as on Linux. Native Windows isn't supported: the
   crate sets Unix file permissions on the database.
 
-## Use
-
-[`examples/feed.rs`](examples/feed.rs) is the clip at the top: a source that
-needs a token, gets it after start, syncs three posts per pass, fails once
-while keeping its rows, and a UI loop that only reads.
+Then see it run, the clip at the top:
 
 ```
+git clone https://github.com/gmrdad82/pito-sync && cd pito-sync
 cargo run --example feed
 ```
 
-The pieces, in short:
+The whole idea in one file: a source that writes posts on its own thread, and
+a UI loop that only reads.
+
 
 ```rust
 use std::sync::mpsc;
@@ -110,6 +113,120 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 ```
+
+## What it does
+
+### The UI never waits
+
+![Paired bars, lower is better: UI read times while a source writes 10,000-row passes back to back. Median 0.047 ms with pito-sync against 0.073 ms on SQLite's defaults, 1.6× faster; p99 0.194 ms against 1233.670 ms, 6362× faster; slowest 2.840 ms against 1233.670 ms, 434× faster.](docs/images/busy-writer-paired.png)
+
+The UI reads through its own read-only connection, and every database is
+opened in WAL with `synchronous=NORMAL`, so a reader never queues behind a
+writer's commit. In the chart a source commits 10,000-row passes back to back
+for three seconds while the UI reads a page of 50 rows and the sync row every
+millisecond: 2,305 reads, the slowest 2.84 ms, while the source got through
+415 passes. The same code on a plain connection with SQLite's defaults
+(rollback journal, `synchronous=FULL`) managed 88 reads, the slowest stuck
+behind the writer for 1.23 s, and 58 passes.
+
+### Sources on their own threads
+
+![Single bars, median microseconds, lower is better: a UI read with the writer idle 8.6, Resync to its closing Changed 33.0, a UI read with the writer busy 46.8, opening an existing database 74.0.](docs/images/step-costs-bars.png)
+
+A source is a trait with one `pass`. `spawn` gives it its own thread and
+connection, runs the first pass at once, then timed passes or a pass whenever
+the app sends a `Resync`. Each pass sends a `Changed` when it starts and one
+when it ends, so the UI shows "syncing…" with no extra wiring. A `Resync`
+comes back as its closing `Changed` in 33 µs; a secret the app only has later,
+such as a token after sign-in, goes in with `Message::Secret` and starts a pass.
+The clip at the top is exactly that, and prints:
+
+```
+feed      syncing…
+feed      no key: sign in first (0 posts kept)
+feed      syncing…
+feed      3 posts, newest "Threads that never block the UI"
+feed      syncing…
+feed      6 posts, newest "One file per app"
+feed      syncing…
+feed      unreachable: the server did not answer (6 posts kept)
+feed      syncing…
+feed      9 posts, newest "The sync table"
+```
+
+### One transaction per pass
+
+A pass writes its rows and its bookkeeping row in one `BEGIN IMMEDIATE`
+through `commit`, so the UI sees both or neither, never half a sync. Writing
+10,000 rows that way takes 3.61 ms, 2.77 million rows a second:
+
+```rust
+let pass = Pass { source: "feed", started_at, finished_at: now(), failure: None, cursor: None };
+pito_sync::commit(conn, pass, |tx| {
+    tx.execute("DELETE FROM posts", [])?;
+    let mut insert = tx.prepare_cached("INSERT INTO posts (title) VALUES (?1)")?;
+    for title in &titles {
+        insert.execute([title])?;
+    }
+    Ok(titles.len())
+})
+```
+
+### One private database per app, kept as a cache
+
+<p align="center"><img src="docs/images/private.gif" width="800" alt="A terminal: after the feed example runs, stat shows its folder drwx------ and feed.db -rw-------; chmod opens them to drwxr-xr-x and -rw-r--r--; after the example runs again, stat shows drwx------ and -rw------- once more."></p>
+
+Each app keeps its own file, created 0600 in a 0700 folder, and every `open`
+puts both back if something loosened them, as the clip shows. The file is a
+cache, never migrated: when the app's schema version or the crate's own
+`sync` table changes, `open` deletes the file with its `-wal` and `-shm` and
+builds it fresh, in 144 ms once per install or version; opening it after that
+takes 74 µs.
+
+### Failures the UI can read back
+
+A pass that fails returns a `Failure` with its kind: `no_key`, `refused`,
+`forbidden`, `unreachable`, `bad_answer` or `rate_limited`. The thread records
+it in the sync row and the rows the last good pass wrote stay, so the UI says
+each kind its own way and still shows what it has:
+
+```rust
+return Err(Failure::new(Fault::RateLimited, "try again in a minute").until(Some(retry_at)));
+
+match sync.error.as_deref().and_then(Fault::parse) {
+    Some((Fault::NoKey, _)) => "sign in to see your feed".into(),
+    Some((fault, message)) => format!("{}: {message} ({posts} posts kept)", fault.word()),
+    None => format!("{posts} posts"),
+}
+```
+
+A `retry_after` holds the timed passes back until then; a `Resync` the user
+asks for still runs.
+
+### Secrets that stay secret
+
+```rust
+let token = pito_sync::Secret::new(String::from("from the keyring"));
+println!("{token:?}");
+```
+
+```
+Secret(hidden)
+```
+
+A `Secret` hides in `Debug`, has no `Clone` or `Display`, and zeroes its
+buffer, spare capacity included, when it drops. `expose()` is the only way
+back to the value, and the crate never writes one to the database, a log or
+an error.
+
+### Small
+
+569 lines of library code and one dependency: the crate re-exports `rusqlite`
+(0.40, with SQLite bundled), so an app uses `pito_sync::rusqlite` and stays on
+the same version. The `feed` example, a whole app with SQLite inside, is a
+3.0 MB release binary.
+
+## Reference
 
 ### Where the database goes
 
@@ -237,6 +354,28 @@ stored as `kind: message` (`text()`), and `Fault::parse(&error)` reads it back
 so the UI can say each kind its own way. `Failure::until(Some(at))` sets
 `retry_after`: a timed pass waits until `at`, a resync doesn't.
 
+
+## Part of PITO MD
+
+pito-sync is one of the open building blocks of [PITO MD](https://pitomd.com),
+a family of fast desktop and terminal apps and the tools that make them. It
+works well next to:
+
+- [pito-storekit](https://github.com/gmrdad82/pito-storekit), SQLite store
+  mechanics for an app's own data: long jobs in slices, ordered migrations,
+  daily backups.
+- [pito-fetch](https://github.com/gmrdad82/pito-fetch), atomic, resumable
+  downloads pinned to a sha256, for a source that pulls files.
+- [pito-tui](https://github.com/gmrdad82/pito-tui) and
+  [pito-hourglass](https://github.com/gmrdad82/pito-hourglass), a terminal UI
+  that reads the database and an hourglass to show while a pass runs.
+- [pito-jobs](https://github.com/gmrdad82/pito-jobs), live job records and
+  progress lines for command-line tools.
+
+The clips here are recorded with [prec](https://github.com/gmrdad82/prec) and
+made GIFs with [pconv](https://github.com/gmrdad82/pconv); the charts are drawn
+with [pito-compare](https://github.com/gmrdad82/pito-compare).
+
 ## Contributing
 
 Issues are welcome at
@@ -255,8 +394,9 @@ bin/gate
 `bin/gate` runs `cargo fmt --check`, `cargo clippy --all-targets -- -D
 warnings`, the tests with [cargo-nextest](https://nexte.st) and the doctests;
 the tests write only under `tmp/`. CI runs it on Linux and macOS on every push
-and nightly, and runs the example. The clip at the top is a terminal recording
-of the example ([NOTICE](NOTICE)).
+and nightly, and runs the `feed` example. The clips are terminal recordings of
+the examples, and the charts' data is in [docs/charts/](docs/charts/)
+([NOTICE](NOTICE)).
 
 ## Licence
 

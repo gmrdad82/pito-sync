@@ -44,3 +44,10 @@ line = "The feed example: a source on its own thread, a token handed in after st
 tape = "render/terminal/feed.tape"
 launch = "export PATH={bin}:$PATH && clear"
 settle = "400ms"
+
+[shots.private]
+kind = "clip"
+line = "The database stays private: the feed example builds its file 0600 in a 0700 folder, and the next open puts both back after a chmod"
+tape = "render/terminal/private.tape"
+launch = "export PATH={bin}:$PATH && clear"
+settle = "400ms"

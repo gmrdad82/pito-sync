@@ -1,0 +1,26 @@
+title = "WHAT EACH STEP COSTS"
+unit = "MICROSECONDS, MEDIAN"
+better = "lower"
+subtitle = "RYZEN 9 9950X, LINUX, BTRFS, A LOADED MACHINE"
+date = "2026-10-14"
+suffix = " US"
+notes = ["EXAMPLES/NUMBERS.RS, RELEASE BUILD. US = MICROSECONDS."]
+
+[[parties]]
+name = "PITO-SYNC"
+
+[[rows]]
+label = "UI READ, WRITER IDLE"
+values = [8.6]
+
+[[rows]]
+label = "RESYNC TO ITS CLOSING CHANGED"
+values = [33.0]
+
+[[rows]]
+label = "UI READ, WRITER BUSY"
+values = [46.8]
+
+[[rows]]
+label = "OPEN AN EXISTING DATABASE"
+values = [74.0]
