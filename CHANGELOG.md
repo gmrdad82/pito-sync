@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.1 — 2026-10-14
+
+### Added
+
+- Docs at docs.pitomd.com: install on each platform, ten guides from writing a source to testing one, the file formats, and the API reference. Every GitHub Release carries them as `docs-vX.Y.Z.tar.gz`.
+
 ## v1.0.0 — 2026-10-14
 
 ### Added
