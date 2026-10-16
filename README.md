@@ -373,8 +373,8 @@ works well next to:
   progress lines for command-line tools.
 
 The clips here are recorded with [prec](https://github.com/gmrdad82/prec) and
-made GIFs with [pconv](https://github.com/gmrdad82/pconv); the charts are drawn
-with [pito-compare](https://github.com/gmrdad82/pito-compare).
+made GIFs with [pcod](https://github.com/gmrdad82/pito-codecs); the charts are
+drawn with [pito-compare](https://github.com/gmrdad82/pito-compare).
 
 ## Contributing
 
