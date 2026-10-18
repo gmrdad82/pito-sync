@@ -2,7 +2,7 @@
 
 # pito-sync
 
-[![CI](https://github.com/gmrdad82/pito-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/gmrdad82/pito-sync/actions/workflows/ci.yml) [![Version](https://img.shields.io/github/v/tag/gmrdad82/pito-sync)](https://github.com/gmrdad82/pito-sync/tags)
+[![Version](https://img.shields.io/github/v/tag/gmrdad82/pito-sync)](https://github.com/gmrdad82/pito-sync/tags)
 
 pito-sync is a small Rust crate for apps whose UI reads a local SQLite file
 while background sources keep it up to date, part of [PITO MD](https://pitomd.com).
@@ -393,9 +393,8 @@ bin/gate
 
 `bin/gate` runs `cargo fmt --check`, `cargo clippy --all-targets -- -D
 warnings`, the tests with [cargo-nextest](https://nexte.st) and the doctests;
-the tests write only under `tmp/`. CI runs it on Linux and macOS on every push
-and nightly, and runs the `feed` example. The clips are terminal recordings of
-the examples, and the charts' data is in [docs/charts/](docs/charts/)
+the tests write only under `tmp/`. The clips are terminal recordings of the
+examples, and the charts' data is in [docs/charts/](docs/charts/)
 ([NOTICE](NOTICE)).
 
 ## Licence
