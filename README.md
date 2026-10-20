@@ -15,6 +15,8 @@ its p99 stays at 0.19 ms; the same code on SQLite's defaults has a p99 of
 
 Works on Linux and macOS (Windows through WSL).
 
+Got questions or doubts? Ping me on Discord: https://discord.gg/XsNcn3kYzn
+
 ## At a glance
 
 | What | Measured |
