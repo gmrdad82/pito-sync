@@ -47,7 +47,7 @@ cargo run --release --example numbers
 Add it to your `Cargo.toml` as a git dependency:
 
 ```toml
-pito-sync = { git = "https://github.com/gmrdad82/pito-sync", tag = "v1.0.1" }
+pito-sync = { git = "https://github.com/gmrdad82/pito-sync", tag = "v1.0.2" }
 ```
 
 It needs Rust 1.97 or newer and a C compiler, since SQLite is compiled in:

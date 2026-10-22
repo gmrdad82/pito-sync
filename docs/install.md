@@ -12,7 +12,7 @@ pito-sync is a library. It ships no binaries: you add it to your
 
 ```toml
 [dependencies]
-pito-sync = { git = "https://github.com/gmrdad82/pito-sync", tag = "v1.0.1" }
+pito-sync = { git = "https://github.com/gmrdad82/pito-sync", tag = "v1.0.2" }
 ```
 
 The crate re-exports `rusqlite` 0.40 with SQLite compiled in. Use
