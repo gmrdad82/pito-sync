@@ -271,17 +271,27 @@ fn a_missing_database_reads_as_nothing() {
 #[test]
 fn a_version_out_of_range_is_refused() {
     let file = scratch("range").join("app.db");
-    for version in [-1, MAX_VERSION + 1, i64::MAX] {
+    let shown = file.display().to_string();
+    for version in [-1, MAX_VERSION + 1, i64::MAX, i64::MIN] {
         let spec = Spec::new(&file, version, NOTES);
-        assert!(open(&spec).is_err(), "{version}");
-        assert!(reader(&spec).is_err(), "{version}");
-        assert!(memory(&spec).is_err(), "{version}");
+        let errors = [
+            open(&spec).unwrap_err(),
+            reader(&spec).unwrap_err(),
+            memory(&spec).unwrap_err(),
+        ];
+        for error in errors {
+            assert!(error.contains(&shown), "{version}: {error}");
+        }
     }
     assert!(!file.exists());
     let spec = Spec::new(&file, MAX_VERSION, NOTES);
     let conn = open(&spec).unwrap();
     assert_eq!(version(&conn).unwrap(), spec.user_version());
     assert!(reader(&spec).unwrap().is_some());
+    assert_eq!(
+        version(&memory(&spec).unwrap()).unwrap(),
+        spec.user_version()
+    );
 }
 
 #[test]

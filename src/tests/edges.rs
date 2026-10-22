@@ -22,6 +22,7 @@ fn open_under_a_file_names_the_folder_and_leaves_the_file_alone() {
     fs::write(&blocker, "a file, not a folder").unwrap();
     let error = open(&Spec::new(blocker.join("journal.db"), 1, NOTES)).unwrap_err();
     assert!(error.contains(&shown(&blocker)), "{error}");
+    assert!(!error.contains("journal.db"), "{error}");
     assert_eq!(
         fs::read_to_string(&blocker).unwrap(),
         "a file, not a folder"
@@ -69,19 +70,6 @@ fn a_memory_database_with_a_failing_schema_is_an_error() {
 }
 
 #[test]
-fn a_memory_database_refuses_a_version_just_outside_the_range() {
-    for version in [-1, MAX_VERSION + 1] {
-        let error = memory(&Spec::new("ledger.db", version, NOTES)).unwrap_err();
-        assert!(error.contains("ledger.db"), "{version}: {error}");
-    }
-    let top = memory(&Spec::new("ledger.db", MAX_VERSION, NOTES)).unwrap();
-    assert_eq!(
-        version(&top).unwrap(),
-        Spec::new("ledger.db", MAX_VERSION, NOTES).user_version()
-    );
-}
-
-#[test]
 fn a_reader_never_changes_the_file_it_refuses() {
     let file = scratch("reader-refuses").join("journal.db");
     let old = Spec::new(&file, 1, NOTES);
@@ -117,17 +105,15 @@ fn a_reader_on_junk_is_an_error_and_leaves_the_junk() {
 }
 
 #[test]
-fn the_user_version_saturates_but_open_refuses_what_does_not_fit() {
-    let file = scratch("saturate").join("journal.db");
-    let top = Spec::new(&file, i64::MAX, NOTES);
-    let bottom = Spec::new(&file, i64::MIN, NOTES);
-    assert_eq!(top.user_version(), i64::MAX);
-    assert_eq!(bottom.user_version(), i64::MIN + 1);
-    for spec in [&top, &bottom] {
-        assert!(open(spec).is_err());
-        assert!(memory(spec).is_err());
-    }
-    assert!(!file.exists());
+fn the_user_version_saturates_at_the_extremes() {
+    assert_eq!(
+        Spec::new("journal.db", i64::MAX, NOTES).user_version(),
+        i64::MAX
+    );
+    assert_eq!(
+        Spec::new("journal.db", i64::MIN, NOTES).user_version(),
+        i64::MIN + 1
+    );
 }
 
 #[test]
