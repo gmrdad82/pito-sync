@@ -10,6 +10,8 @@ use crate::book::now_ms;
 use crate::store::STRIDE;
 use crate::*;
 
+mod edges;
+
 const NOTES: &[&str] = &["CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT NOT NULL)"];
 
 const NOTES_PINNED: &[&str] = &["CREATE TABLE notes (

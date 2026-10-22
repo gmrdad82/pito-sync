@@ -120,6 +120,6 @@ pub fn due(conn: &Connection, source: &str, every: Duration, now: i64) -> bool {
         .flatten()
         .filter(|s| s.ok != Some(false))
         .and_then(|s| s.finished_at);
-    let every = every.as_millis() as i64;
-    finished.is_none_or(|at| now - at >= every)
+    let every = i64::try_from(every.as_millis()).unwrap_or(i64::MAX);
+    finished.is_none_or(|at| now.saturating_sub(at) >= every)
 }
