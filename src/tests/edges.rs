@@ -159,6 +159,23 @@ fn a_rebuild_that_cannot_remove_a_sidecar_names_it_and_keeps_it() {
 }
 
 #[test]
+fn open_on_a_folder_names_it_and_leaves_the_folder_and_its_contents() {
+    let file = scratch("folder").join("journal.db");
+    fs::create_dir(&file).unwrap();
+    let inside = file.join("keep");
+    fs::write(&inside, b"mine").unwrap();
+    let spec = Spec::new(&file, 1, NOTES);
+    let error = open(&spec).unwrap_err();
+    assert!(error.contains(&shown(&file)), "{error}");
+    assert!(file.is_dir());
+    assert_eq!(fs::read(&inside).unwrap(), b"mine");
+    fs::remove_dir_all(&file).unwrap();
+    let conn = open(&spec).unwrap();
+    assert_eq!(version(&conn).unwrap(), spec.user_version());
+    assert!(file.is_file());
+}
+
+#[test]
 fn without_a_sync_table_reads_fail_and_due_says_run() {
     let mut conn = Connection::open_in_memory().unwrap();
     conn.execute_batch(NOTES[0]).unwrap();
