@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
+case "$#:${1-}" in
+  0: | 1:--fast) ;;
+  *)
+    echo "usage: bin/gate [--fast]" >&2
+    exit 2
+    ;;
+esac
 cd "$(dirname "$0")/.."
 export CARGO_NET_GIT_FETCH_WITH_CLI=true
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo nextest run --no-tests=pass
 cargo test --doc
+echo "fast gate: green"
