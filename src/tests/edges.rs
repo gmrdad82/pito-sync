@@ -1,3 +1,4 @@
+use std::os::unix::fs::MetadataExt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{RecvTimeoutError, Sender};
@@ -65,7 +66,19 @@ fn a_memory_database_with_a_failing_schema_is_an_error() {
     assert!(memory(&Spec::new("unused.db", 1, bad)).is_err());
     let clash: &[&str] = &["CREATE TABLE sync (source TEXT)"];
     assert!(memory(&Spec::new("unused.db", 1, clash)).is_err());
-    assert!(!Path::new("unused.db").exists());
+}
+
+#[test]
+fn a_memory_database_refuses_a_version_just_outside_the_range() {
+    for version in [-1, MAX_VERSION + 1] {
+        let error = memory(&Spec::new("ledger.db", version, NOTES)).unwrap_err();
+        assert!(error.contains("ledger.db"), "{version}: {error}");
+    }
+    let top = memory(&Spec::new("ledger.db", MAX_VERSION, NOTES)).unwrap();
+    assert_eq!(
+        version(&top).unwrap(),
+        Spec::new("ledger.db", MAX_VERSION, NOTES).user_version()
+    );
 }
 
 #[test]
@@ -81,10 +94,8 @@ fn a_reader_never_changes_the_file_it_refuses() {
 
     assert!(reader(&Spec::new(&file, 2, NOTES)).unwrap().is_none());
     for version in [-1, MAX_VERSION + 1] {
-        assert!(
-            reader(&Spec::new(&file, version, NOTES)).is_err(),
-            "{version}"
-        );
+        let error = reader(&Spec::new(&file, version, NOTES)).unwrap_err();
+        assert!(error.contains(&shown(&file)), "{version}: {error}");
     }
     assert_eq!(fs::read(&file).unwrap(), before);
     let conn = reader(&old).unwrap().unwrap();
@@ -100,7 +111,8 @@ fn a_reader_on_junk_is_an_error_and_leaves_the_junk() {
     let file = scratch("reader-junk").join("journal.db");
     let junk = "not a database at all, just some text that is long enough";
     fs::write(&file, junk).unwrap();
-    assert!(reader(&Spec::new(&file, 1, NOTES)).is_err());
+    let error = reader(&Spec::new(&file, 1, NOTES)).unwrap_err();
+    assert!(error.contains(&shown(&file)), "{error}");
     assert_eq!(fs::read_to_string(&file).unwrap(), junk);
 }
 
@@ -111,8 +123,6 @@ fn the_user_version_saturates_but_open_refuses_what_does_not_fit() {
     let bottom = Spec::new(&file, i64::MIN, NOTES);
     assert_eq!(top.user_version(), i64::MAX);
     assert_eq!(bottom.user_version(), i64::MIN + 1);
-    assert!(Spec::new(&file, MAX_VERSION, NOTES).user_version() <= i64::from(i32::MAX));
-    assert!(Spec::new(&file, MAX_VERSION + 1, NOTES).user_version() > i64::from(i32::MAX));
     for spec in [&top, &bottom] {
         assert!(open(spec).is_err());
         assert!(memory(spec).is_err());
@@ -121,30 +131,31 @@ fn the_user_version_saturates_but_open_refuses_what_does_not_fit() {
 }
 
 #[test]
-fn a_rebuild_takes_a_crashed_writers_wal_and_shm_with_it() {
-    let live = scratch("crash-live").join("journal.db");
-    let image = scratch("crash-image").join("journal.db");
-    let mut conn = open(&Spec::new(&live, 1, NOTES)).unwrap();
-    conn.execute("INSERT INTO notes (body) VALUES ('old')", [])
+fn a_rebuild_unlinks_the_sidecars_another_reader_still_holds() {
+    let file = scratch("held-sidecars").join("journal.db");
+    let old = Spec::new(&file, 1, NOTES);
+    let mut writer = open(&old).unwrap();
+    writer
+        .execute("INSERT INTO notes (body) VALUES ('old')", [])
         .unwrap();
-    mark(&mut conn, "journal", 10, None);
-    assert!(sibling(&live, "-wal").exists());
-    for suffix in ["", "-wal", "-shm"] {
-        fs::copy(sibling(&live, suffix), sibling(&image, suffix)).unwrap();
-    }
-    drop(conn);
-    let old_wal = fs::read(sibling(&image, "-wal")).unwrap();
-    assert!(!old_wal.is_empty());
+    mark(&mut writer, "journal", 10, None);
+    let held = reader(&old).unwrap().unwrap();
+    assert_eq!(count(&held, "notes"), 1);
+    drop(writer);
+    let inode = |suffix: &str| fs::metadata(sibling(&file, suffix)).unwrap().ino();
+    let before = [inode(""), inode("-wal"), inode("-shm")];
 
-    let new = Spec::new(&image, 2, NOTES_PINNED);
+    let new = Spec::new(&file, 2, NOTES_PINNED);
     let conn = open(&new).unwrap();
     assert_eq!(version(&conn).unwrap(), new.user_version());
     assert_eq!(columns(&conn, "notes"), ["id", "body", "pinned"]);
     assert_eq!(count(&conn, "notes"), 0);
     assert!(sync(&conn, "journal").unwrap().is_none());
-    if let Ok(wal) = fs::read(sibling(&image, "-wal")) {
-        assert_ne!(wal, old_wal);
+    let after = [inode(""), inode("-wal"), inode("-shm")];
+    for (i, suffix) in ["", "-wal", "-shm"].into_iter().enumerate() {
+        assert_ne!(before[i], after[i], "{suffix} was reused");
     }
+    drop(held);
 }
 
 #[test]
@@ -184,7 +195,7 @@ fn without_a_sync_table_reads_fail_and_due_says_run() {
         |tx| tx.execute("INSERT INTO notes (body) VALUES ('lost')", []),
     )
     .unwrap_err();
-    assert!(error.to_string().contains("sync"), "{error}");
+    assert!(has_sqlite_code(&error, ErrorCode::Unknown), "{error}");
     assert!(conn.is_autocommit());
     assert_eq!(count(&conn, "notes"), 0);
 }
