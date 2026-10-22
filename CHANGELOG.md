@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.0.2 — 2026-10-23
+
+### Fixed
+
+- `due` no longer comes due at every tick when a source's interval is huge (`Duration::MAX` wrapped to a negative number), and no longer overflows on a finish time far in the past.
+
+### Changed
+
+- The bad paths are covered by tests: an `open` under a file or on a folder, a schema that fails, a stale or out-of-range `reader`, a `commit` whose write fails, and a runner whose listener or inbox goes away. Line coverage is 97.2%, up from 95.4%.
+- The README shows the PITO MD wordmark at its Licence section and a line to ask questions on Discord.
+- The gate and the releases run outside GitHub, and the README drops its CI badge.
+
 ## v1.0.1 — 2026-10-14
 
 ### Added

@@ -1,6 +1,6 @@
 [package]
 name = "pito-sync"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2024"
 rust-version = "1.97"
 description = "A local-SQLite sync layer for desktop and terminal apps: one database per app, background sources writing, the UI only reading"
